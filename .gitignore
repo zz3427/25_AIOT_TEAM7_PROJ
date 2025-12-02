@@ -1,0 +1,16 @@
+.DS_Store
+
+.vscode/
+
+backend/venv/
+**/__pycache__/
+**/*.pyc
+
+
+ParkAtCU/DerivedData/
+ParkAtCU/xcuserdata/
+ParkAtCU/build/
+*.xcuserstate
+
+
+*.log
