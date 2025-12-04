@@ -4,8 +4,8 @@
 
 
 // ===== 1. WiFi settings =====
-const char* ssid     = "Verizon_HH97TV";
-const char* password = "88888888";
+const char* ssid     = "SpectrumSetup-36AC";
+const char* password = "entirefarmer768";
 
 // Change this to development backend URL
 String serverUrl = "http://192.168.1.190:8000/api/camera/upload?camera_id=cam-001";

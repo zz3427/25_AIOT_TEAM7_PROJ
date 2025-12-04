@@ -6,28 +6,29 @@
 //
 
 import Foundation
+import Combine
 
-class ParkingAPI {
+import Foundation
+
+final class ParkingAPI {
     static let shared = ParkingAPI()
+    private init() {}
 
-    // TODO: replace this with your real backend base URL
-    private let baseURL = URL(string: "https://your-backend-url.com")!
+    // TODO: replace with your actual laptop IP
+    private let baseURL = URL(string: "http://192.168.1.208:8080")!  // e.g. http://192.168.1.208:8080
 
-    private let decoder: JSONDecoder = {
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return d
-    }()
-
-    /// Fetch current spots near the given coordinates.
+    /// Fetch current spots from the backend, filtered by lat/lng/radius if the backend uses them.
     func fetchCurrentSpots(
         lat: Double,
         lng: Double,
-        radius: Int = 300
+        radius: Int
     ) async throws -> [ParkingSpot] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/api/spots/current"),
+            resolvingAgainstBaseURL: false
+        )!
 
-        var components = URLComponents(url: baseURL.appendingPathComponent("/api/spots/current"),
-                                       resolvingAgainstBaseURL: false)!
+        // These can be ignored by the backend for now if you haven't wired them yet
         components.queryItems = [
             URLQueryItem(name: "lat", value: String(lat)),
             URLQueryItem(name: "lng", value: String(lng)),
@@ -38,15 +39,17 @@ class ParkingAPI {
             throw URLError(.badURL)
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        let (data, response) = try await URLSession.shared.data(from: url)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode) else {
+        if let http = response as? HTTPURLResponse,
+           !(200...299).contains(http.statusCode) {
             throw URLError(.badServerResponse)
         }
+
+        let decoder = JSONDecoder()
+        // Your backend returns ISO-8601 timestamps like "2025-12-01T21:30:45Z",
+        // so this will decode `lastUpdated: Date?` correctly.
+        decoder.dateDecodingStrategy = .iso8601
 
         let decoded = try decoder.decode(CurrentSpotsResponse.self, from: data)
         return decoded.spots
