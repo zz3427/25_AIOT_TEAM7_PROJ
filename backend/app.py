@@ -7,19 +7,12 @@ app = Flask(__name__)
 # Global: remember last uploaded image path
 LAST_IMAGE_PATH = None
 
-
-
-# -----------------------------
 # Health check / root
-# -----------------------------
 @app.route("/")
 def root():
     return "Team7 Parking backend is running 👋", 200
 
-
-# -----------------------------
 # Current empty spots (for iOS)
-# -----------------------------
 @app.route("/api/spots/current", methods=["GET"])
 def api_spots_current():
     """
