@@ -1,6 +1,17 @@
 import SwiftUI
 import MapKit
 
+private struct MapItem: Identifiable {
+    let id = UUID()
+    let coordinate: CLLocationCoordinate2D
+    let kind: Kind
+
+    enum Kind {
+        case spot(ParkingSpot)
+        case user
+    }
+}
+
 struct CurrentView: View {
     @StateObject private var viewModel: SpotsViewModel
     @StateObject private var locationManager = LocationManager()
@@ -60,24 +71,53 @@ struct CurrentView: View {
             $0.status.lowercased() == "empty"
         }
 
+        // Build annotation items: spots + (optional) user location
+        var items: [MapItem] = emptySpots.map { spot in
+            MapItem(
+                coordinate: CLLocationCoordinate2D(latitude: spot.lat, longitude: spot.lng),
+                kind: .spot(spot)
+            )
+        }
+
+        if let userLocation = locationManager.lastLocation {
+            items.append(
+                MapItem(
+                    coordinate: userLocation.coordinate,
+                    kind: .user
+                )
+            )
+        }
+
         return ZStack {
-            Map(coordinateRegion: $region, annotationItems: emptySpots) { spot in
-                MapAnnotation(
-                    coordinate: CLLocationCoordinate2D(latitude: spot.lat, longitude: spot.lng)
-                ) {
-                    Button {
-                        openInMaps(spot)
-                    } label: {
-                        VStack(spacing: 2) {
-                            Image(systemName: "mappin.circle.fill")
-                                .font(.title)
-                                .foregroundColor(AppTheme.primary) // Columbia blue pin
-                            Text(spot.spotID)
-                                .font(.caption2)
-                                .padding(3)
-                                .background(.thinMaterial)
-                                .cornerRadius(4)
+            Map(coordinateRegion: $region, annotationItems: items) { item in
+                MapAnnotation(coordinate: item.coordinate) {
+                    switch item.kind {
+                    case .spot(let spot):
+                        Button {
+                            openInMaps(spot)
+                        } label: {
+                            VStack(spacing: 2) {
+                                Image(systemName: "mappin.circle.fill")
+                                    .font(.title)
+                                    .foregroundColor(AppTheme.primary) // Columbia blue pin
+                                Text(spot.spotID)
+                                    .font(.caption2)
+                                    .padding(3)
+                                    .background(.thinMaterial)
+                                    .cornerRadius(4)
+                            }
                         }
+
+                    case .user:
+                        // Apple Maps–style blue dot
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 16, height: 16)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 3)
+                            )
+                            .shadow(radius: 4)
                     }
                 }
             }
