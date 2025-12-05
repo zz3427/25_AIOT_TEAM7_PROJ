@@ -11,7 +11,27 @@ import SwiftUI
 struct ParkAtCUApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            TabView {
+                ContentView(viewModel: SpotsViewModel())
+                    .tabItem {
+                        Label("Current", systemImage: "car.fill")
+                    }
+
+                ForecastView()
+                    .tabItem {
+                        Label("Future", systemImage: "clock.arrow.circlepath")
+                    }
+
+                NotificationsView()
+                    .tabItem {
+                        Label("Alerts", systemImage: "bell.badge")
+                    }
+
+                ProfileView()
+                    .tabItem {
+                        Label("Profile", systemImage: "person.crop.circle")
+                    }
+            }
         }
     }
 }

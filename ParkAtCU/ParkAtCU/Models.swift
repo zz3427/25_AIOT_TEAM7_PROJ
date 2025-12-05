@@ -43,3 +43,11 @@ struct ParkingSpot: Identifiable, Decodable {
         case lastUpdated = "last_updated"
     }
 }
+
+struct ForecastSpotsResponse: Decodable {
+    let timestamp: String?
+    let query: QueryInfo?
+    let spots: [ParkingSpot]
+    let forecastFor: String?       // e.g. ISO time string
+    let confidence: Double?        // optional, 0..1
+}
