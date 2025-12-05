@@ -4,11 +4,14 @@
 
 
 // ===== 1. WiFi settings =====
-const char* ssid     = "SpectrumSetup-36AC";
-const char* password = "entirefarmer768";
+// const char* ssid     = "SpectrumSetup-36AC";
+// const char* password = "entirefarmer768";
+
+const char* ssid     = "Columbia University";
+const char* password = "";
 
 // Change this to development backend URL
-String serverUrl = "http://192.168.1.208:8080/api/camera/upload?camera_id=cam-001";
+String serverUrl = "http://10.206.213.217:8080/api/camera/upload?camera_id=cam-001";
 
 #define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"   // comes from ESP32 camera examples
