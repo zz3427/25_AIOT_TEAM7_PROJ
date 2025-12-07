@@ -106,12 +106,7 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
         data = {
             "spots": [],
             "notes": "Failed to parse model JSON.",
-            "raw_model_text": raw_content,
         }
-
-    # Optionally keep raw text around for debugging
-    if "raw_model_text" not in data:
-        data["raw_model_text"] = raw_content
 
     return data
 
