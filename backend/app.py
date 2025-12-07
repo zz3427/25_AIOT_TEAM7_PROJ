@@ -66,9 +66,21 @@ def root():
     return "Team7 Parking backend is running 👋", 200
 
 # Current empty spots (for iOS)
-@app.route("/api/spots/current", methods=["GET"])
-def api_spots_current():
-    # Optional query params from app (can be nil on first version)
+@app.route("/api/spots/forecast", methods=["GET"])
+def api_spots_forecast():
+    """
+    Forecast endpoint.
+
+    Frontend sends:
+      - lat, lng: user location
+      - time: desired arrival time (ISO-8601 string)
+
+    Backend:
+      - computes arrival_dt from time and current time
+      - uses predictor.py to estimate predictedAvailability and expectedWaitMinutes
+      - returns spots (currently empty/occupied) with prediction info attached
+    """
+
     user_lat = request.args.get("lat", type=float)
     user_lng = request.args.get("lng", type=float)
     radius = request.args.get("radius", type=int)
@@ -217,6 +229,123 @@ def api_spots_current():
         },
         "summary": summary,
         "prediction": prediction,
+        "spots": spots,
+    }
+
+    return jsonify(response), 200
+
+@app.route("/api/spots/current", methods=["GET"])
+def api_spots_current():
+    """
+    Current availability endpoint.
+
+    Frontend can optionally send:
+      - lat, lng: user location
+      - radius: filter radius in meters
+
+    Returns:
+      - only spots that are currently EMPTY (available),
+        optionally sorted by distance from the user.
+    """
+    user_lat = request.args.get("lat", type=float)
+    user_lng = request.args.get("lng", type=float)
+    radius = request.args.get("radius", type=int)
+
+    now_utc = datetime.utcnow()
+    now_iso = now_utc.isoformat() + "Z"
+
+    spots: list[dict] = []
+
+    if CURRENT_SPOTS:
+        # Use latest LLM snapshot from all cameras
+        for camera_id, snapshot in CURRENT_SPOTS.items():
+            camera_ts = snapshot.get("timestamp")
+            for rec in snapshot.get("spots", []):
+                spot_index = rec.get("spot_index")
+                status = rec.get("status")
+
+                # Only return currently available spots
+                if status != "empty":
+                    continue
+
+                lat = rec.get("lat")
+                lng = rec.get("lng")
+
+                distance_m = None
+                if (
+                    user_lat is not None and user_lng is not None and
+                    lat is not None and lng is not None
+                ):
+                    distance_m = haversine_distance_m(user_lat, user_lng, lat, lng)
+
+                if radius is not None and distance_m is not None and distance_m > radius:
+                    continue
+
+                spot = {
+                    "spotID": f"{camera_id}-spot-{spot_index}",
+                    "lat": lat,
+                    "lng": lng,
+                    "status": status,
+                    "sourceCameraID": camera_id,
+                    "lastUpdated": camera_ts,
+                    "distanceMeters": distance_m,
+                }
+                spots.append(spot)
+    else:
+        # Fallback: use dummy spots, but only keep currently empty ones
+        dummy_spots = [
+            {
+                "spotID": "spot-101",
+                "lat": 40.8080,
+                "lng": -73.9620,
+                "status": "empty",
+                "sourceCameraID": "cam-001",
+                "lastUpdated": now_iso,
+            },
+            {
+                "spotID": "spot-102",
+                "lat": 40.8078,
+                "lng": -73.9624,
+                "status": "occupied",
+                "sourceCameraID": "cam-001",
+                "lastUpdated": now_iso,
+            },
+        ]
+
+        for s in dummy_spots:
+            if s["status"] != "empty":
+                continue
+
+            lat = s["lat"]
+            lng = s["lng"]
+
+            distance_m = None
+            if (
+                user_lat is not None and user_lng is not None and
+                lat is not None and lng is not None
+            ):
+                distance_m = haversine_distance_m(user_lat, user_lng, lat, lng)
+
+            if radius is not None and distance_m is not None and distance_m > radius:
+                continue
+
+            s["distanceMeters"] = distance_m
+            spots.append(s)
+
+    # Sort available spots by distance if we know it
+    spots.sort(
+        key=lambda s: s["distanceMeters"]
+        if s.get("distanceMeters") is not None
+        else float("inf")
+    )
+
+    response = {
+        "timestamp": now_iso,
+        "query": {
+            "lat": user_lat,
+            "lng": user_lng,
+            "radius": radius,
+        },
         "spots": spots,
     }
 
