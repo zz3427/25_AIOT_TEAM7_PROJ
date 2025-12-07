@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_file
 from llm_processor import analyze_parking_image
-from datetime import datetime
+from predictor import predict_empty_probability, expected_wait_minutes
+from datetime import datetime, timedelta
 import os
 import csv
 import math
@@ -67,33 +68,39 @@ def root():
 # Current empty spots (for iOS)
 @app.route("/api/spots/current", methods=["GET"])
 def api_spots_current():
-    """
-    Returns dummy current spots for now.
-    Shape matches your iOS Models.swift:
-
-    struct CurrentSpotsResponse {
-        let timestamp: String?
-        let query: QueryInfo?
-        let spots: [ParkingSpot]
-    }
-
-    struct ParkingSpot {
-        let spotID: String
-        let lat: Double
-        let lng: Double
-        let status: String
-        let sourceCameraID: String?
-        let lastUpdated: Date?
-    }
-    """
-
     # Optional query params from app (can be nil on first version)
     user_lat = request.args.get("lat", type=float)
     user_lng = request.args.get("lng", type=float)
     radius = request.args.get("radius", type=int)
 
-    # For now, just return a dummy list
-    now_iso = datetime.utcnow().isoformat() + "Z"
+    # Desired arrival time from frontend
+    arrival_iso = request.args.get("time")
+
+    now_utc = datetime.utcnow()
+    now_iso = now_utc.isoformat() + "Z"
+
+    arrival_dt = None
+    eta_minutes = None
+
+    if arrival_iso:
+        try:
+            # Accept both "...Z" and no "Z"
+            cleaned = arrival_iso.replace("Z", "")
+            arrival_dt = datetime.fromisoformat(cleaned)
+        except ValueError:
+            arrival_dt = None
+
+    if arrival_dt is not None:
+        # Compute ETA in minutes from *now* to the requested arrival time
+        eta_minutes = (arrival_dt - now_utc).total_seconds() / 60.0
+        # If arrival time is in the past, clamp to "now"
+        if eta_minutes < 0:
+            eta_minutes = 0.0
+            arrival_dt = now_utc
+    else:
+        # If no valid arrivalTime is provided, assume arrival in ~5 minutes
+        eta_minutes = 5.0
+        arrival_dt = now_utc + timedelta(minutes=5.0)
 
     spots = [
         {
@@ -124,12 +131,14 @@ def api_spots_current():
 
                 distance_m = None
                 if (
-			user_lat is not None and user_lng is not None and 
-			lat is not None and lng is not None
-		):
+                    user_lat is not None and user_lng is not None and 
+                    lat is not None and lng is not None
+                ):
                     distance_m = haversine_distance_m(user_lat, user_lng, lat, lng)
-		if radius is not None and distance_m is not None and distance_m > radius:
-			continue
+                if (radius is not None and distance_m is not None and distance_m > radius):
+                    continue
+
+                predicted_avail = predict_empty_probability(arrival_dt)
 
                 spot = {
                     "spotID": f"{camera_id}-spot-{spot_index}",
@@ -139,8 +148,65 @@ def api_spots_current():
                     "sourceCameraID": camera_id,
                     "lastUpdated": camera_ts,
                     "distanceMeters": distance_m,
+                    "predictedAvailability": predicted_avail,
                 }
                 spots.append(spot)
+    else:
+        dummy_pred_avail = predict_empty_probability(arrival_dt)
+
+        # Fallback: original dummy test spots when we have no LLM data yet
+        spots = [
+            {
+                "spotID": "spot-101",
+                "lat": 40.8080,
+                "lng": -73.9620,
+                "status": "empty",
+                "sourceCameraID": "cam-001",
+                "lastUpdated": now_iso,
+                "predictedAvailability": dummy_pred_avail,
+            },
+            {
+                "spotID": "spot-102",
+                "lat": 40.8078,
+                "lng": -73.9624,
+                "status": "occupied",
+                "sourceCameraID": "cam-001",
+                "lastUpdated": now_iso,
+                "predictedAvailability": dummy_pred_avail,
+            },
+        ]
+
+    # Sort spots by distance if available (nearest first).
+    # Spots with distanceMeters == None go last.
+    spots.sort(
+        key=lambda s: s["distanceMeters"]
+        if s.get("distanceMeters") is not None
+        else float("inf")
+    )
+
+    total_spots = len(spots)
+    empty_spots = sum(1 for s in spots if s.get("status") == "empty")
+    
+    # Prediction summary: average predicted availability + expected wait
+    if spots:
+        avg_pred_avail = sum(
+            s.get("predictedAvailability", 0.0) for s in spots
+        ) / len(spots)
+    else:
+        avg_pred_avail = predict_empty_probability(arrival_dt)
+
+    wait_minutes = expected_wait_minutes(arrival_dt)
+
+    prediction = {
+        "arrivalTimestamp": arrival_dt.isoformat() + "Z",
+        "avgPredictedAvailability": avg_pred_avail,
+        "expectedWaitMinutes": wait_minutes,
+    }
+
+    summary = {
+        "total_spots": total_spots,
+        "empty_spots": empty_spots
+    }
 
     response = {
         "timestamp": now_iso,
@@ -149,6 +215,8 @@ def api_spots_current():
             "lng": user_lng,
             "radius": radius,
         },
+        "summary": summary,
+        "prediction": prediction,
         "spots": spots,
     }
 
@@ -205,12 +273,15 @@ def camera_upload():
     if "error" not in llm_result:
         update_spot_storage(camera_id, llm_result, now_iso)
 
+    empty_spots = llm_result.get("empty_spots")
+
     return jsonify({
         "status": "ok",
         "camera_id": camera_id,
         "size_bytes": size,
         "file": filename,
         "timestamp": now_iso,
+        "empty_spots": empty_spots,
         "llm" : llm_result,
     }), 200
 
@@ -229,8 +300,8 @@ def update_spot_storage(camera_id: str, llm_result: dict, timestamp_iso: str):
     for spot in spots:
         spot_index = spot.get("spot_index")
         status = spot.get("status")
-	
-	lat, lng = SPOT_COORDS.get((camera_id, spot_index), (None, None))
+        
+        lat, lng = SPOT_COORDS.get((camera_id, spot_index), (None, None))
 
         record = {
             "timestamp": timestamp_iso,

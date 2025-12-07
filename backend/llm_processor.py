@@ -58,25 +58,23 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
 
     # System + user prompt: keep it VERY clear we want strict JSON.
     system_prompt = (
-        "You are an assistant that analyzes fixed-view parking lot images. "
-        "Identify each clearly marked parking spot and determine whether it is "
-        "EMPTY or OCCUPIED (if any vehicle is in or clearly blocking the spot). "
-        "You must respond strictly as a JSON object, no extra text."
+        "You analyze fixed-view parking lot images. "
+        "Identify each clearly marked parking spot and whether it is EMPTY or OCCUPIED. "
+        "Respond as a STRICT JSON object only, with no extra text."
     )
 
     user_text_prompt = (
-        "Look at this parking lot image. "
-        "Return JSON with:\n"
+        "Look at this parking lot image and return JSON in exactly this format:\n"
         "{\n"
-        '  \"spots\": [\n'
-        "    { \"spot_index\": <integer starting at 0>, "
-        "\"status\": \"empty\" or \"occupied\" }\n"
-        "  ],\n"
-        '  \"notes\": \"very brief explanation\"\n'
-        "}\n\n"
-        "Use a consistent ordering of spots based on their position in the image "
-        "(e.g., left-to-right, top-to-bottom). If the image is too unclear, "
-        "return an empty spots array and explain in notes."
+        "  \"total_spots\": <integer total number of visible parking spots>,\n"
+        "  \"empty_spots\": <integer number of empty spots>,\n"
+        "  \"spots\": [\n"
+        "    { \"spot_index\": <integer starting at 0>, \"status\": \"empty\" | \"occupied\" }\n"
+        "  ]\n"
+        "}\n"
+        "Do not include any other fields or explanation. "
+        "If the image is unusable, return:\n"
+        "{ \"total_spots\": 0, \"empty_spots\": 0, \"spots\": [] }"
     )
 
     # Call the OpenAI Chat Completions API with image input
