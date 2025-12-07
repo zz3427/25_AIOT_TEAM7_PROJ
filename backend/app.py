@@ -36,7 +36,11 @@ CURRENT_SPOTS = {}
 # Dummy values for now; later you can calibrate these to real GPS coords.
 SPOT_COORDS = {
     ("cam-001", 0): (40.8080, -73.9620),  # e.g. "spot-101"
-    ("cam-001", 1): (40.8078, -73.9624),  # e.g. "spot-102"
+    ("cam-001", 1): (40.8080, -73.9620),  # e.g. "spot-102"
+    ("cam-001", 2): (40.8080, -73.9620),
+    ("cam-001", 3): (40.8080, -73.9620),
+    ("cam-001", 4): (40.8080, -73.9620),
+    ("cam-001", 5): (40.8080, -73.9620),
     # Add more as you add more cameras/spots
 }
 
@@ -114,24 +118,10 @@ def api_spots_forecast():
         eta_minutes = 5.0
         arrival_dt = now_utc + timedelta(minutes=5.0)
 
-    spots = [
-        {
-            "spotID": "spot-101",
-            "lat": 40.8080,
-            "lng": -73.9620,
-            "status": "empty",
-            "sourceCameraID": "cam-001",
-            "lastUpdated": now_iso,
-        },
-        {
-            "spotID": "spot-102",
-            "lat": 40.8078,
-            "lng": -73.9624,
-            "status": "occupied",
-            "sourceCameraID": "cam-001",
-            "lastUpdated": now_iso,
-        },
-    ]
+    # Before we have real LLM data, pretend cam-001 sees 6 spots.
+    # Some empty, some occupied.
+    spots = []
+
     if CURRENT_SPOTS:
         for camera_id, snapshot in CURRENT_SPOTS.items():
             camera_ts = snapshot.get("timestamp")
@@ -147,6 +137,7 @@ def api_spots_forecast():
                     lat is not None and lng is not None
                 ):
                     distance_m = haversine_distance_m(user_lat, user_lng, lat, lng)
+
                 if (radius is not None and distance_m is not None and distance_m > radius):
                     continue
 
@@ -167,26 +158,32 @@ def api_spots_forecast():
         dummy_pred_avail = predict_empty_probability(arrival_dt)
 
         # Fallback: original dummy test spots when we have no LLM data yet
-        spots = [
-            {
-                "spotID": "spot-101",
-                "lat": 40.8080,
-                "lng": -73.9620,
-                "status": "empty",
+        for idx in range(6):
+            lat, lng = SPOT_COORDS.get(("cam-001", idx), (None, None))
+
+            distance_m = None
+            if (
+                user_lat is not None and user_lng is not None and
+                lat is not None and lng is not None
+            ):
+                distance_m = haversine_distance_m(user_lat, user_lng, lat, lng)
+
+            if radius is not None and distance_m is not None and distance_m > radius:
+                continue
+
+            status = "empty" if idx in (0, 2, 4) else "occupied"
+            
+            spot = {
+                "spotID": f"cam-001-spot-{idx}",
+                "lat": lat,
+                "lng": lng,
+                "status": status,
                 "sourceCameraID": "cam-001",
                 "lastUpdated": now_iso,
+                "distanceMeters": distance_m,
                 "predictedAvailability": dummy_pred_avail,
-            },
-            {
-                "spotID": "spot-102",
-                "lat": 40.8078,
-                "lng": -73.9624,
-                "status": "occupied",
-                "sourceCameraID": "cam-001",
-                "lastUpdated": now_iso,
-                "predictedAvailability": dummy_pred_avail,
-            },
-        ]
+            }
+            spots.append(spot)
 
     # Sort spots by distance if available (nearest first).
     # Spots with distanceMeters == None go last.
@@ -208,6 +205,11 @@ def api_spots_forecast():
         avg_pred_avail = predict_empty_probability(arrival_dt)
 
     wait_minutes = expected_wait_minutes(arrival_dt)
+
+    # Attach group-level estimated wait time to each spot.
+    # For our demo, every spot in the camera's group shares the same wait.
+    for s in spots:
+        s["estimatedWaitMinutes"] = wait_minutes
 
     prediction = {
         "arrivalTimestamp": arrival_dt.isoformat() + "Z",
