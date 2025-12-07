@@ -18,6 +18,11 @@ class SpotsViewModel: ObservableObject {
     private let defaultLat = 40.8075
     private let defaultLng = -73.9626
     private let radius = 300
+    
+    private let appState: AppState?
+    init(appState: AppState? = nil) {
+        self.appState = appState
+    }
 
     func loadSpots() {
         isLoading = true
@@ -69,15 +74,23 @@ class SpotsViewModel: ObservableObject {
             await loadSpots()
 
             // Compute newly empty spots
-            let currentEmpty = Set(spots.filter { $0.status.lowercased() == "empty" }.map(\.spotID))
+            let currentEmpty = Set(spots
+                .filter { $0.status.lowercased() == "empty" }
+                .map(\.spotID)
+            )
             let newlyEmpty = currentEmpty.subtracting(lastEmptySpotIDs)
 
             if !newlyEmpty.isEmpty {
-                // trigger some UI signal – e.g. a @Published banner model
                 await MainActor.run {
                     self.lastEmptySpotIDs = currentEmpty
-                    // e.g. self.latestAlert = "New spot: \(newlyEmpty.first!)"
-                    self.stopWatch()     // auto-disarm after success
+
+                    if let firstID = newlyEmpty.first,
+                       let spot = self.spots.first(where: { $0.spotID == firstID }) {
+                        // 🔔 create notification + banner
+                        self.appState?.addNotification(for: spot)
+                    }
+
+                    self.stopWatch()  // auto-disarm after success
                 }
                 break
             }

@@ -1,34 +1,32 @@
-
-
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            
-            VStack{
-                // 1) Custom bottom background BEHIND the tab icons
-                Rectangle()
-                    .fill(.ultraThinMaterial)   // translucent / blurry
-                    .frame(height: 90)          // tweak if needed
-                    .ignoresSafeArea(edges: .bottom)
-                    .allowsHitTesting(false)    // taps go through to the icons
-            }
+    @EnvironmentObject var appState: AppState
 
-            // 2) Your real TabView with 4 tabs
-            TabView {
+    enum Tab {
+        case current
+        case predict
+        case notifications
+        case profile
+    }
+
+    @State private var selectedTab: Tab = .current
+
+    var body: some View {
+        ZStack {
+            TabView(selection: $selectedTab) {
                 // CURRENT TAB
                 NavigationStack {
                     CurrentView(
-                        viewModel: SpotsViewModel(),
+                        viewModel: SpotsViewModel(appState: appState),
                         autoLoad: true
                     )
-                    // hide nav bar so you don't get a blue top strip
-                    .toolbar(.hidden, for: .navigationBar)
+                    .toolbar(.hidden, for: .navigationBar)   // full-screen map
                 }
                 .tabItem {
                     Label("Current", systemImage: "car.fill")
                 }
+                .tag(Tab.current)
 
                 // PREDICT TAB
                 NavigationStack {
@@ -38,47 +36,83 @@ struct ContentView: View {
                 .tabItem {
                     Label("Predict", systemImage: "clock.fill")
                 }
+                .tag(Tab.predict)
 
                 // NOTIFICATIONS TAB
                 NavigationStack {
-                    Text("Notifications coming soon")
+                    NotificationsView()
                         .navigationTitle("Notifications")
                 }
                 .tabItem {
                     Label("Notifications", systemImage: "bell.fill")
                 }
+                .tag(Tab.notifications)
 
                 // PROFILE TAB
                 NavigationStack {
-                    Text("Profile coming soon")
+                    ProfileView()
                         .navigationTitle("Profile")
                 }
                 .tabItem {
                     Label("Profile", systemImage: "person.crop.circle")
                 }
+                .tag(Tab.profile)
+            }
+
+            // 🔔 In-app banner overlay
+            if let banner = appState.activeNotification {
+                NotificationBannerView(
+                    notification: banner,
+                    onTap: {
+                        // clear banner + jump to Notifications tab
+                        appState.activeNotification = nil
+                        selectedTab = .notifications
+                    }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(1)
             }
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.9), value: appState.activeNotification)
     }
 }
 
-
+#Preview {
+    ContentView()
+        .environmentObject(AppState())
+}
+//
+//import SwiftUI
+//
 //struct ContentView: View {
 //    var body: some View {
-//        ZStack {
+//        ZStack(alignment: .bottom) {
+//            
+//            VStack{
+//                // 1) Custom bottom background BEHIND the tab icons
+//                Rectangle()
+//                    .fill(.ultraThinMaterial)   // translucent / blurry
+//                    .frame(height: 90)          // tweak if needed
+//                    .ignoresSafeArea(edges: .bottom)
+//                    .allowsHitTesting(false)    // taps go through to the icons
+//            }
 //
-//            // 1) Your real TabView with 4 tabs
+//            // 2) Your real TabView with 4 tabs
 //            TabView {
+//                // CURRENT TAB
 //                NavigationStack {
 //                    CurrentView(
 //                        viewModel: SpotsViewModel(),
 //                        autoLoad: true
 //                    )
-////                    .navigationTitle("Current Empty Spots")
+//                    // hide nav bar so you don't get a blue top strip
+//                    .toolbar(.hidden, for: .navigationBar)
 //                }
 //                .tabItem {
 //                    Label("Current", systemImage: "car.fill")
 //                }
 //
+//                // PREDICT TAB
 //                NavigationStack {
 //                    ForecastView()
 //                        .navigationTitle("Future Spots")
@@ -87,6 +121,7 @@ struct ContentView: View {
 //                    Label("Predict", systemImage: "clock.fill")
 //                }
 //
+//                // NOTIFICATIONS TAB
 //                NavigationStack {
 //                    Text("Notifications coming soon")
 //                        .navigationTitle("Notifications")
@@ -95,63 +130,18 @@ struct ContentView: View {
 //                    Label("Notifications", systemImage: "bell.fill")
 //                }
 //
+//                // PROFILE TAB
 //                NavigationStack {
-//                    Text("Profile coming soon")
-//                        .navigationTitle("Profile")
+//                    ProfileView()
 //                }
 //                .tabItem {
 //                    Label("Profile", systemImage: "person.crop.circle")
 //                }
 //            }
-//            VStack {
-//                Spacer()
-//                Rectangle()
-//                    .fill(.ultraThinMaterial)   // 🔹 nice translucent blur
-//                    .frame(height: 90)          // ~tab bar height; tweak if needed
-//                    .ignoresSafeArea(edges: .bottom)
-//                    .allowsHitTesting(false)    // ✅ taps go through to the icons
-//            }.ignoresSafeArea()
 //        }
 //    }
 //}
-
-#Preview {
-    ContentView()
-}
-
-//struct ContentView: View {
-//    var body: some View {
-//        TabView {
-//            // 1. Current tab
-//            CurrentView(
-//                viewModel: SpotsViewModel(),
-//                autoLoad: true
-//            )
-//            .tabItem {
-//                Label("Current", systemImage: "car.fill")
-//            }
 //
-//            // 2. Forecast tab
-//            ForecastView()
-//                .tabItem {
-//                    Label("Predict", systemImage: "clock.fill")
-//                }
-//
-//            // 3. Notifications tab
-//            NotificationsView()
-//                .tabItem {
-//                    Label("Alerts", systemImage: "bell.fill")
-//                }
-//
-//            // 4. Profile tab
-//            ProfileView()
-//                .tabItem {
-//                    Label("Profile", systemImage: "person.crop.circle")
-//                }
-//        }
-//    }
+//#Preview {
+//    ContentView()
 //}
-
-#Preview {
-    ContentView()
-}

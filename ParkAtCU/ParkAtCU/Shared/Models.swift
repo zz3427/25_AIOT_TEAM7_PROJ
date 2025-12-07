@@ -7,6 +7,19 @@
 
 import Foundation
 
+struct SpotNotification: Identifiable, Hashable {
+    let id: UUID
+    let spotID: String
+    let lat: Double
+    let lng: Double
+    let createdAt: Date
+    let cameraID: String?
+
+    var title: String {
+        "New empty spot: \(spotID)"
+    }
+}
+
 struct QueryInfo: Decodable {
     let lat: Double
     let lng: Double
