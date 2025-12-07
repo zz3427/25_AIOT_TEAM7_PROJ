@@ -101,7 +101,7 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
 
     # Call the OpenAI Chat Completions API with image input
     response = client.chat.completions.create(
-        model="gpt-4.1-mini",  # supports vision + JSON, cheap enough for a class project
+        model="gpt-5-mini",  # supports vision + JSON, cheap enough for a class project
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": system_prompt},
