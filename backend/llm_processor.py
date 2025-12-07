@@ -118,7 +118,7 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
                 ],
             },
         ],
-        max_tokens=500,
+        max_completion_tokens=500,
     )
 
     # The model was told to return a JSON object as a string
