@@ -68,13 +68,10 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
         "{\n"
         "  \"total_spots\": <integer total number of visible parking spots>,\n"
         "  \"empty_spots\": <integer number of empty spots>,\n"
-        "  \"spots\": [\n"
-        "    { \"spot_index\": <integer starting at 0>, \"status\": \"empty\" | \"occupied\" }\n"
-        "  ]\n"
         "}\n"
         "Do not include any other fields or explanation. "
         "If the image is unusable, return:\n"
-        "{ \"total_spots\": 0, \"empty_spots\": 0, \"spots\": [] }"
+        "{ \"total_spots\": 0, \"empty_spots\": 0}"
     )
 
     # Call the OpenAI Chat Completions API with image input
