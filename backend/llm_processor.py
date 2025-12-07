@@ -14,6 +14,7 @@ from openai import OpenAI
 # e.g. export OPENAI_API_KEY="sk-..."
 client = OpenAI()
 
+NUM_SPOTS = 6
 
 def _encode_image_to_data_url(image_path: Path) -> str:
     """
@@ -35,14 +36,8 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
     Expected return shape (example):
 
     {
-        "spots": [
-            {
-                "spot_index": 0,
-                "status": "empty" or "occupied"
-            },
-            ...
-        ],
-        "notes": "Model's brief explanation"
+	"total_spots": 6,
+	"empty_spots": <int>,
     }
 
     Coordinates (lat/lng) will be attached later by mapping
@@ -61,43 +56,39 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
         #"You analyze fixed-view parking lot images. "
         #"Identify each clearly marked parking spot and whether it is EMPTY or OCCUPIED. "
         #"Respond as a STRICT JSON object only, with no extra text."
-        "You analyze images from a fixed ESP32 demo camera showing a tiny parking lot drawn on white paper. "
-        "In the upper part of the image there is a single row of parking spaces, separated by diagonal black lines, "
-        "against a white wall. In the lower part there is a drawn road with dashed lane markings. "
-        "Your task is ONLY about the parking spaces in the upper parking area; IGNORE the road below.\n\n"
-        "Define parking spaces as contiguous regions between diagonal divider lines."
-        "Anything shaded black is NOT a parking spot."
-	"Each such region counts as exactly one parking spot, even if there is no car there. "
-        "Number the spots from left to right starting at 0.\n\n"
-        "A spot is OCCUPIED if any toy car or significant part of a car clearly lies inside that region. "
-        "If a car overlaps two regions, count it as OCCUPIED in the region where most of the car appears and EMPTY in the other region.\n\n"
+        "You analyze images from a single fixed ESP32 demo camera showing a tiny parking lot drawn on white paper.\n"
+        "The scene always looks like this:\n"
+        "- The UPPER part of the image is the parking area on white paper, with six rectangular parking spaces in one row, "
+        "separated by vertical black lines, against a wall.\n"
+        "- The LOWER part of the image is a drawn road with dashed lane markings that you must ignore for parking.\n\n"
+        f"For this camera, there are ALWAYS exactly {NUM_SPOTS} parking spaces in a single row, left to right.\n"
+        f"Conceptually divide JUST the upper parking area into {NUM_SPOTS} equal-width vertical regions from left to right:\n"
+        f"- Region 0 = leftmost space, region {NUM_SPOTS - 1} = rightmost space.\n\n"
+        "For each region:\n"
+        "- If any toy car or a significant part of a car is clearly inside that region, the space is OCCUPIED.\n"
+        "- If the region shows only the drawn space lines and empty floor (no car), the space is EMPTY.\n"
+        "- If a car overlaps two regions, treat the region where MOST of the car appears as OCCUPIED "
+        "and the neighbor as EMPTY.\n\n"
         "Respond as a STRICT JSON object only, with no extra text."
     )
 
     user_text_prompt = (
-        #"Look at this parking lot image and return JSON in exactly this format:\n"
-        #"{\n"
-        #"  \"total_spots\": <integer total number of visible parking spots>,\n"
-        #"  \"empty_spots\": <integer number of empty spots>,\n"
-        #"}\n"
-        #"Do not include any other fields or explanation. "
-        #"If the image is unusable, return:\n"
-        #"{ \"total_spots\": 0, \"empty_spots\": 0}"
-        "Look at the upper parking area in this image (above the front horizontal line) and ignore the road below.\n"
-        "Identify EVERY clearly marked parking space in the row, using the rule:\n"
-        "- each region between two vertical parking-divider lines, or between the edge of the image and a divider line, "
-        "is one parking spot.\n"
-        "Number the spaces from left to right starting at 0, and decide whether each is \"empty\" or \"occupied\".\n\n"
+        "Look ONLY at the parking spaces in the UPPER half of this image (above the front horizontal line) "
+        "and ignore the road below.\n"
+        "Using the fixed layout described above, determine whether each of the six spaces is \"empty\" or \"occupied\".\n\n"
         "Return JSON in exactly this format:\n"
         "{\n"
         "  \"total_spots\": <integer total number of visible parking spots>,\n"
         "  \"empty_spots\": <integer number of empty spots>,\n"
         "}\n\n"
         "Rules:\n"
-        "- \"total_spots\" must equal the number of entries in \"spots\".\n"
-        "- \"empty_spots\" must equal the number of entries whose status is \"empty\".\n"
-        "- Do NOT include any other fields or explanations.\n"
-        "If the image is completely unusable, still return a syntactically valid JSON object by making a best guess.\n"
+        f"- Always set \"total_spots\" to {NUM_SPOTS}.\n"
+        f"- Always return exactly {NUM_SPOTS} entries in \"spots\", one for each spot_index from 0 to {NUM_SPOTS - 1}, "
+        "ordered from left to right.\n"
+        "- Compute \"empty_spots\" as the count of entries whose status is \"empty\".\n"
+        "- Do NOT include any other fields or explanation text.\n"
+        f"If the image is completely unusable (blurry, black, or not a parking lot), still use \"total_spots\" = {NUM_SPOTS}, "
+        "and set all spots to status \"occupied\" (so empty_spots = 0).\n"
     )
 
     # Call the OpenAI Chat Completions API with image input
@@ -133,6 +124,39 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
             "spots": [],
             "notes": "Failed to parse model JSON.",
         }
+
+    if isinstance(data, dict):
+        raw_spots = data.get("spots") or []
+
+        # Collect valid statuses by index from model output
+        status_by_idx = {}
+        for item in raw_spots:
+            if not isinstance(item, dict):
+                continue
+            idx = item.get("spot_index")
+            status = item.get("status")
+            if isinstance(idx, int) and 0 <= idx < NUM_SPOTS and status in ("empty", "occupied"):
+                status_by_idx[idx] = status
+
+        # Build canonical list: always 0..NUM_SPOTS-1
+        canonical_spots = []
+        for idx in range(NUM_SPOTS):
+            # Default to "occupied" if model didn't give anything usable
+            status = status_by_idx.get(idx, "occupied")
+            canonical_spots.append(
+                {
+                    "spot_index": idx,
+                    "status": status,
+                }
+            )
+
+        data["spots"] = canonical_spots
+        data["total_spots"] = NUM_SPOTS
+        data["empty_spots"] = sum(1 for s in canonical_spots if s["status"] == "empty")
+
+        # Keep raw text for debugging
+        if "raw_model_text" not in data:
+            data["raw_model_text"] = text
 
     return data
 

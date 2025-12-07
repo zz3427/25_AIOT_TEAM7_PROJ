@@ -7,7 +7,6 @@
 from datetime import datetime
 from typing import Literal
 
-
 DayType = Literal["weekday", "weekend"]
 
 # Probability that a spot is EMPTY by day type and hour (0-23).
