@@ -14,7 +14,7 @@ struct ParkAtCUApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                mainApp
+                ContentView()
                     .tint(AppTheme.primary)
                 if showSplash {
                     LaunchScreenView()
@@ -31,21 +31,4 @@ struct ParkAtCUApp: App {
         }
     }
 
-    var mainApp: some View {
-        TabView {
-//            CurrentView(viewModel: SpotsViewModel())
-//                .tabItem { Label("Current", systemImage: "car.fill") }
-            CurrentView(viewModel: MockData.previewSpotsViewModel, autoLoad: false)
-                .tabItem { Label("Current", systemImage: "car.fill") }
-
-            ForecastView()
-                .tabItem { Label("Future", systemImage: "clock") }
-
-            NotificationsView()
-                .tabItem { Label("Alerts", systemImage: "bell") }
-
-            ProfileView()
-                .tabItem { Label("Profile", systemImage: "person.circle") }
-        }
-    }
 }
