@@ -35,12 +35,12 @@ CURRENT_SPOTS = {}
 # Hardcoded coordinates for each (camera_id, spot_index).
 # Dummy values for now; later you can calibrate these to real GPS coords.
 SPOT_COORDS = {
-    ("cam-001", 0): (40.8080, -73.9620),  # e.g. "spot-101"
-    ("cam-001", 1): (40.8080, -73.9620),  # e.g. "spot-102"
-    ("cam-001", 2): (40.8080, -73.9620),
-    ("cam-001", 3): (40.8080, -73.9620),
-    ("cam-001", 4): (40.8080, -73.9620),
-    ("cam-001", 5): (40.8080, -73.9620),
+    ("cam-001", 0): (40.809591, -73.959638),  # e.g. "spot-101"
+    ("cam-001", 1): (40.809710, -73.959924),  # e.g. "spot-102"
+    ("cam-001", 2): (40.809833, -73.960216),
+    ("cam-001", 3): (40.810134, -73.960933),
+    ("cam-001", 4): (40.810253, -73.961215),
+    ("cam-001", 5): (40.810371, -73.961499),
     # Add more as you add more cameras/spots
 }
 
@@ -265,10 +265,6 @@ def api_spots_current():
             for rec in snapshot.get("spots", []):
                 spot_index = rec.get("spot_index")
                 status = rec.get("status")
-
-                # Only return currently available spots
-                if status != "empty":
-                    continue
 
                 lat = rec.get("lat")
                 lng = rec.get("lng")

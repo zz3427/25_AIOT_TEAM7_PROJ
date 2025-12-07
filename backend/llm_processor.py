@@ -53,9 +53,6 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
 
     # System + user prompt: keep it VERY clear we want strict JSON.
     system_prompt = (
-        #"You analyze fixed-view parking lot images. "
-        #"Identify each clearly marked parking spot and whether it is EMPTY or OCCUPIED. "
-        #"Respond as a STRICT JSON object only, with no extra text."
         "You analyze images from a single fixed ESP32 demo camera showing a tiny parking lot drawn on white paper.\n"
         "The scene always looks like this:\n"
         "- The UPPER part of the image is the parking area on white paper, with six rectangular parking spaces in one row, "
