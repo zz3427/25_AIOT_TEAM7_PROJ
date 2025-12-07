@@ -11,10 +11,12 @@ const char* ssid     = "Columbia University";
 const char* password = "";
 
 // Change this to development backend URL
-String serverUrl = "http://10.206.213.217:8080/api/camera/upload?camera_id=cam-001";
+String serverUrl = "http://10.206.110.154:8080/api/camera/upload?camera_id=cam-001";
 
 #define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"   // comes from ESP32 camera examples
+
+#define FLASH_LED_PIN 4   // AI-Thinker board uses GPIO 4 for the flash LED
 
 // ===== 2. Connect to WiFi =====
 void connectToWiFi() {
@@ -78,7 +80,15 @@ void captureAndUpload() {
     connectToWiFi();
   }
 
+  // // 🔦 TURN ON FLASH BEFORE TAKING PICTURE
+  // digitalWrite(FLASH_LED_PIN, HIGH);
+  // delay(150);  // small warm-up for camera exposure
+
   camera_fb_t *fb = esp_camera_fb_get();
+
+  // // 🔦 TURN FLASH OFF AFTER CAPTURE
+  // digitalWrite(FLASH_LED_PIN, LOW);
+
   if (!fb) {
     Serial.println("Camera capture failed");
     return;
@@ -87,6 +97,9 @@ void captureAndUpload() {
   Serial.print("Captured image, size = ");
   Serial.print(fb->len);
   Serial.println(" bytes");
+
+  Serial.print("Posting to: ");
+  Serial.println(serverUrl);
 
   HTTPClient http;
   http.begin(serverUrl);
@@ -110,6 +123,9 @@ void captureAndUpload() {
 
 // ===== 5. Arduino setup/loop =====
 void setup() {
+  pinMode(FLASH_LED_PIN, OUTPUT);
+  digitalWrite(FLASH_LED_PIN, LOW);  // flash off
+
   Serial.begin(115200);
   delay(2000);
   Serial.println("\nBooting parking camera...");
@@ -126,5 +142,5 @@ void setup() {
 void loop() {
   Serial.println("\nTaking picture and uploading...");
   captureAndUpload();
-  delay(10000);  // every 10 seconds (tune this later)
+  delay(5000);  // every 10 seconds (tune this later)
 }
