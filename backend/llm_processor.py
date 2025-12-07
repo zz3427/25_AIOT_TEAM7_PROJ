@@ -115,6 +115,7 @@ def analyze_parking_image(image_path: str) -> Dict[str, Any]:
 
     # The model was told to return a JSON object as a string
     raw_content = response.choices[0].message.content
+    text = (raw_content or "").strip()
 
     try:
         data = json.loads(raw_content)
