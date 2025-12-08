@@ -21,9 +21,9 @@ enum ParkingAPIError: Error {
 final class ParkingAPI {
     static let shared = ParkingAPI()
 
-    // IMPORTANT:
+    // NOTICE:
     // - Simulator talking to backend on SAME Mac: use 127.0.0.1
-    // - Real iPhone on same Wi-Fi: change this to your Mac's LAN IP, e.g. "http://192.168.1.208:8080"
+    // - Real iPhone on same Wi-Fi: change this to LAN IP, e.g. "http://192.168.1.208:8080"
     private let baseURL = URL(string: "http://127.0.0.1:8080")!
 //    private let baseURL = URL(string: "http://10.206.110.154:8080")!
 
@@ -139,7 +139,7 @@ final class ParkingAPI {
                 items.append(URLQueryItem(name: "radius", value: String(radius)))
             }
 
-            // If backend later wants a time parameter, add it here:
+            // If backend later wants a time parameter, add:
             // let iso = ParkingAPI.iso8601Fractional.string(from: time)
             // items.append(URLQueryItem(name: "time", value: iso))
 
@@ -160,7 +160,7 @@ final class ParkingAPI {
             }
 
             #if DEBUG
-            // 👇 Helpful to see raw JSON when debugging
+            // Helpful to see raw JSON when debugging
             if let jsonString = String(data: data, encoding: .utf8) {
                 print("Forecast raw JSON:\n\(jsonString)")
             }

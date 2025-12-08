@@ -19,7 +19,6 @@ struct ForecastView: View {
     @State private var showResults = false
 
     var body: some View {
-        var fakeDemo = true
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -51,7 +50,7 @@ struct ForecastView: View {
                         }
                     }
 
-                    // MARK: - Time picker
+                    // MARK: Time picker
                     Text("When?")
                         .font(.headline)
 
@@ -62,7 +61,7 @@ struct ForecastView: View {
                     )
                     .datePickerStyle(.compact)
 
-                    // MARK: - Mini map with center pin
+                    // MARK:  Mini map with center pin
                     Text("Adjust on map")
                         .font(.headline)
 
@@ -112,11 +111,7 @@ struct ForecastView: View {
                     // MARK: - Action button
                     Button {
                         Task {
-                            if (fakeDemo) {
-                                await viewModel.fakeLoadForecastForCurrentSelection()
-                            } else {
-                                await viewModel.loadForecastForCurrentSelection()
-                            }
+                            await viewModel.loadForecastForCurrentSelection()
                             if viewModel.errorMessage == nil {
                                 showResults = true
                             }

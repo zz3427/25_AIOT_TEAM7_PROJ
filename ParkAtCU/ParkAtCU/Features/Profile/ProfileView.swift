@@ -58,9 +58,9 @@ struct ProfileView: View {
                     .padding(.horizontal)
 
 
-                    // MARK: - "Logout" Button (Fake)
+                    // MARK: - "Logout" Button (demo only)
                     Button {
-                        // no real logout logic — placeholder
+                        // no real logout logic — placeholder for now
                     } label: {
                         Text("Log Out")
                             .foregroundColor(.red)

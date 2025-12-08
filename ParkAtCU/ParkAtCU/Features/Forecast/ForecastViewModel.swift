@@ -18,7 +18,7 @@ final class ForecastViewModel: ObservableObject {
     @Published var selectedTime: Date = Date()           // Future time picker
     @Published var selectedCoordinate: CLLocationCoordinate2D? // From geocode or map drag
 
-    // 🔮 Forecast results (now using ForecastSpot, not ParkingSpot)
+    // Forecast results (using ForecastSpot, not ParkingSpot)
     @Published var spots: [ForecastSpot] = []            // Backend result for forecast
     @Published var prediction: ForecastPrediction?       // High-level prediction block
     @Published var summary: ForecastSummary?             // Summary (empty/total)
@@ -106,37 +106,6 @@ final class ForecastViewModel: ObservableObject {
             }
         }
     }
-    
-    func fakeLoadForecastForCurrentSelection() async {
-            guard let coord = selectedCoordinate else {
-                errorMessage = "Choose a location first."
-                return
-            }
-
-            isLoading = true
-            errorMessage = nil
-
-            // 👇 DEMO LOG: just to show we “used” the coordinate + time
-            print("Demo forecast for lat=\(coord.latitude), lng=\(coord.longitude), time=\(selectedTime)")
-
-            // Use mock spots instead of api.fetchForecast(...)
-            let sorted = ForecastMockData.spots.sorted { lhs, rhs in
-                let l = lhs.estimatedWaitMinutes ?? .greatestFiniteMagnitude
-                let r = rhs.estimatedWaitMinutes ?? .greatestFiniteMagnitude
-                return l < r
-            }
-
-            self.spots = sorted
-            self.isLoading = false
-
-            // If you want, you can also fake a prediction/summary:
-            // self.prediction = ForecastPrediction(
-            //     arrivalTimestamp: Date().addingTimeInterval(4 * 60),
-            //     avgPredictedAvailability: 0.85,
-            //     expectedWaitMinutes: 4.0
-            // )
-            // self.summary = ForecastSummary(empty_spots: 2, total_spots: 3)
-        }
 
     /// Call backend using currently selected coordinate + time.
     /// Uses the forecast endpoint and sorts by estimated wait time.

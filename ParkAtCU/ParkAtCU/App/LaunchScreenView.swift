@@ -20,7 +20,7 @@ struct LaunchScreenView: View {
                 .opacity(0.25)
 
             VStack(spacing: 16) {
-                Image("AppIcon")    // your generated icon here
+                Image("AppIcon")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 140, height: 140)
@@ -35,7 +35,7 @@ struct LaunchScreenView: View {
 
                 if showSubtitle {
                     Text("An AI-powered effort to optimize Columbia parking.")
-                        .font(.title3)  // 🔹 bigger than subheadline
+                        .font(.title3)
                         .foregroundColor(.white.opacity(0.9))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
@@ -77,7 +77,7 @@ struct GridOverlay: View {
                     path.addLine(to: CGPoint(x: x, y: geo.size.height))
                 }
 
-                // horizontal lines  👇 fixed: full width
+                // horizontal lines
                 stride(from: 0, through: geo.size.height, by: spacing).forEach { y in
                     path.move(to: CGPoint(x: 0, y: y))
                     path.addLine(to: CGPoint(x: geo.size.width, y: y))

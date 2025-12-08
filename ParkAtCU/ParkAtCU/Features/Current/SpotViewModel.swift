@@ -14,7 +14,7 @@ class SpotsViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     // For now, hard-code a location (e.g. Columbia campus) for testing.
-    // Later you can replace this with CoreLocation.
+    // Later replace this with CoreLocation for real development.
     private let defaultLat = 40.8075
     private let defaultLng = -73.9626
     private let radius = 300
@@ -86,7 +86,7 @@ class SpotsViewModel: ObservableObject {
 
                     if let firstID = newlyEmpty.first,
                        let spot = self.spots.first(where: { $0.spotID == firstID }) {
-                        // 🔔 create notification + banner
+                        // create notification + banner
                         self.appState?.addNotification(for: spot)
                     }
 
