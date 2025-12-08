@@ -103,7 +103,7 @@ struct ForecastResultRow: View {
                     HStack(spacing: 8) {
                         Text(distanceText)
                         Text("•")
-                        Text(spot.status.capitalized)  // keep raw status as small text if you want
+                        Text(spot.status.capitalized)  // keep raw status as small text
                     }
                     .font(.caption)
                     .foregroundColor(.secondary)

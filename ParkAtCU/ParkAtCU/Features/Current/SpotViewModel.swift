@@ -70,7 +70,7 @@ class SpotsViewModel: ObservableObject {
 
     private func runWatchLoop() async {
         while isWatching, let expires = watchExpiresAt, Date() < expires {
-            // Reuse your existing loadSpots() function
+            // Reuse existing loadSpots() function
             await loadSpots()
 
             // Compute newly empty spots

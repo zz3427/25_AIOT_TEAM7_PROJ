@@ -66,7 +66,6 @@ final class ParkingAPI {
 
     // MARK: - Public APIs
 
-    /// Get current spots near a lat/lng within a radius (meters or whatever your backend expects).
     func fetchCurrentSpots(
         lat: Double,
         lng: Double,
@@ -216,7 +215,7 @@ final class ParkingAPI {
     }
 
     private func iso8601String(from date: Date) -> String {
-        // ISO8601 with fractional seconds to match your backend style
+        // ISO8601 with fractional seconds to match backend style
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [
             .withInternetDateTime,

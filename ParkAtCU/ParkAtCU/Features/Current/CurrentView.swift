@@ -137,7 +137,7 @@ struct CurrentView: View {
             } else if emptySpots.isEmpty {
                 overlayCard(
                     title: "No empty spots found",
-                    message: "Try again or adjust your query radius on the backend."
+                    message: "Try again or adjust query radius on the backend."
                 )
             }
 
