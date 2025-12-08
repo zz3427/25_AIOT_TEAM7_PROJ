@@ -13,6 +13,11 @@ struct APIError: LocalizedError {
     var errorDescription: String? { message }
 }
 
+enum ParkingAPIError: Error {
+    case badURL
+    case badResponse
+}
+
 final class ParkingAPI {
     static let shared = ParkingAPI()
 
@@ -20,6 +25,7 @@ final class ParkingAPI {
     // - Simulator talking to backend on SAME Mac: use 127.0.0.1
     // - Real iPhone on same Wi-Fi: change this to your Mac's LAN IP, e.g. "http://192.168.1.208:8080"
     private let baseURL = URL(string: "http://127.0.0.1:8080")!
+//    private let baseURL = URL(string: "http://10.206.110.154:8080")!
 
     private let decoder: JSONDecoder
     private let session: URLSession
@@ -82,32 +88,87 @@ final class ParkingAPI {
         return wrapper.spots
     }
 
-    /// Get forecasted spots near a lat/lng for a given future time.
-    /// Assumes backend endpoint /api/spots/forecast?lat=..&lng=..&time=ISO8601
-    func fetchForecastSpots(
-        lat: Double,
-        lng: Double,
-        radius: Double?,
-        time: Date
-    ) async throws -> [ParkingSpot] {
-        let iso = iso8601String(from: time)
+    private static let iso8601Fractional: ISO8601DateFormatter = {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return f
+        }()
 
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "lat", value: String(lat)),
-            URLQueryItem(name: "lng", value: String(lng)),
-            URLQueryItem(name: "time", value: iso)
-        ]
+        private func makeDecoder() -> JSONDecoder {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let str = try container.decode(String.self)
 
-        if let radius {
-            queryItems.append(URLQueryItem(name: "radius", value: String(radius)))
+                // Try full ISO8601 with fractional seconds
+                if let date = ParkingAPI.iso8601Fractional.date(from: str) {
+                    return date
+                }
+
+                // Fallback: regular ISO8601
+                if let date = ISO8601DateFormatter().date(from: str) {
+                    return date
+                }
+
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid ISO8601 date: \(str)"
+                )
+            }
+            return decoder
         }
 
-        let url = try makeURL(path: "/api/spots/forecast", queryItems: queryItems)
-        let data = try await performRequest(url: url)
+        // MARK: - Forecast endpoint
 
-        let wrapper = try decodeSpotsResponse(from: data)   // SpotsResponse from Models.swift
-        return wrapper.spots
-    }
+        func fetchForecast(
+            lat: Double,
+            lng: Double,
+            radius: Double?,
+            time: Date
+        ) async throws -> ForecastResponse {
+            var components = URLComponents(
+                url: baseURL.appendingPathComponent("/api/spots/forecast"),
+                resolvingAgainstBaseURL: false
+            )
+
+            var items: [URLQueryItem] = [
+                URLQueryItem(name: "lat", value: String(lat)),
+                URLQueryItem(name: "lng", value: String(lng))
+            ]
+            if let radius {
+                items.append(URLQueryItem(name: "radius", value: String(radius)))
+            }
+
+            // If backend later wants a time parameter, add it here:
+            // let iso = ParkingAPI.iso8601Fractional.string(from: time)
+            // items.append(URLQueryItem(name: "time", value: iso))
+
+            components?.queryItems = items
+
+            guard let url = components?.url else {
+                throw ParkingAPIError.badURL
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode) else {
+                throw ParkingAPIError.badResponse
+            }
+
+            #if DEBUG
+            // 👇 Helpful to see raw JSON when debugging
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("Forecast raw JSON:\n\(jsonString)")
+            }
+            #endif
+
+            let decoder = makeDecoder()
+            return try decoder.decode(ForecastResponse.self, from: data)
+        }
 
     // MARK: - Helpers
 

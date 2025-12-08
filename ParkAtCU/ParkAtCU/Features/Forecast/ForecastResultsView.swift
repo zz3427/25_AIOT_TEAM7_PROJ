@@ -5,128 +5,177 @@
 //  Created by Gerald Zhao on 12/6/25.
 //
 import SwiftUI
-import CoreLocation
+import MapKit
 
-// TODO: sort by estimated wait time? show in a map with pins being number? wait time? click on each to navigate?
 struct ForecastResultsView: View {
     @ObservedObject var viewModel: ForecastViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-
-            if viewModel.isLoading {
-                Spacer()
-                ProgressView("Loading forecast…")
-                    .font(.headline)
-                Spacer()
-
-            } else if let error = viewModel.errorMessage {
-                Spacer()
-                VStack(spacing: 8) {
-                    Text("Error")
-                        .font(.title2).bold()
-                    Text(error)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                Spacer()
-
-            } else if viewModel.spots.isEmpty {
-                Spacer()
-                VStack(spacing: 8) {
-                    Text("No forecast available")
-                        .font(.title2).bold()
-                    Text("Try another time or location.")
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-
-            } else {
-                List(viewModel.spots) { spot in
-                    ForecastResultRow(spot: spot)
-                }
+        List(viewModel.spots) { spot in
+            Button {
+                openInMaps(spot)
+            } label: {
+                ForecastResultRow(spot: spot)
             }
         }
-        .padding(.top)
+        .listStyle(.insetGrouped)
         .navigationTitle("Forecast Results")
-        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func openInMaps(_ spot: ForecastSpot) {
+        let coord = CLLocationCoordinate2D(latitude: spot.lat, longitude: spot.lng)
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coord))
+        item.name = spot.spotID
+        item.openInMaps(launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
+        ])
     }
 }
 
 struct ForecastResultRow: View {
-    let spot: ParkingSpot
+    let spot: ForecastSpot
 
-    private func timeAgoString(from date: Date?) -> String {
-        guard let date else { return "Unknown time" }
-        let minutes = Int(Date().timeIntervalSince(date) / 60)
-        if minutes < 1 { return "Just now" }
-        if minutes == 1 { return "1 minute ago" }
-        return "\(minutes) minutes ago"
+    private var availabilityText: String {
+        if let p = spot.predictedAvailability {
+            return String(format: "%.0f%% likely empty", p * 100)
+        } else {
+            return "Prediction unavailable"
+        }
+    }
+
+    private var waitMinutes: Double? {
+        spot.estimatedWaitMinutes
+    }
+
+    private var waitChipText: String {
+        guard let w = waitMinutes else { return "Wait: unknown" }
+        if w <= 0.5 {
+            return "Est. wait: now"
+        } else {
+            return "Est. wait: \n  ~\(Int(w)) min"
+        }
+    }
+
+    private var waitChipColor: Color {
+        guard let w = waitMinutes else { return .gray }
+        switch w {
+        case ..<3:
+            return .green
+        case 3..<8:
+            return .orange
+        default:
+            return .red
+        }
+    }
+
+    private var distanceText: String {
+        if let d = spot.distanceMeters {
+            if d < 1000 {
+                return String(format: "%.0f m away", d)
+            } else {
+                return String(format: "%.1f km away", d / 1000)
+            }
+        } else {
+            return "Distance: unknown"
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 12) {
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundColor(AppTheme.primary)
+                .padding(.vertical, 4)
+                .shadow(radius: 2)
+                .font(.title3)
 
             HStack {
-                Text(spot.spotID)
-                    .font(.headline)
-                Spacer()
-                Text(spot.status.capitalized)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(spot.spotID)
+                            .font(.headline)
+                        Spacer()
+                    }
+                    
+                    Text(availabilityText)
+                        .font(.subheadline)
+                    
+                    HStack(spacing: 8) {
+                        Text(distanceText)
+                        Text("•")
+                        Text(spot.status.capitalized)  // keep raw status as small text if you want
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    
+                    if let updated = spot.lastUpdated {
+                        Text("Updated \(updated, style: .relative)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Text(waitChipText)
                     .font(.subheadline)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(statusColor.opacity(0.12))
-                    .foregroundColor(statusColor)
+                    .padding(.vertical, 4)
+                    .background(waitChipColor.opacity(0.15))
+                    .foregroundColor(waitChipColor)
                     .clipShape(Capsule())
             }
 
-            Text(String(format: "Lat: %.5f, Lng: %.5f", spot.lat, spot.lng))
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            if let updated = spot.lastUpdated {
-                Text("Updated: \(timeAgoString(from: updated))")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+            Spacer()
         }
-        .padding(.vertical, 4)
-    }
-
-    private var statusColor: Color {
-        spot.status.lowercased() == "empty" ? .green : .red
+        .padding(.vertical, 6)
     }
 }
 
-@MainActor
 struct ForecastResultsView_Previews: PreviewProvider {
-    static var previews: some View {
-        // Build a mock view model ON the main actor
+    @MainActor
+    static func makeMockViewModel() -> ForecastViewModel {
         let vm = ForecastViewModel()
-        vm.selectedTime = Date().addingTimeInterval(15 * 60) // 15 min in the future
-        vm.selectedCoordinate = CLLocationCoordinate2D(
-            latitude: 40.8075,
-            longitude: -73.9626
-        )
 
         vm.spots = [
-            ParkingSpot(
-                spotID: "A201",
-                lat: 40.8078,
-                lng: -73.9623,
-                status: "empty",
-                sourceCameraID: "cam-2",
-                lastUpdated: Date().addingTimeInterval(-180) // 3 min ago
-            ),
-            ParkingSpot(
-                spotID: "A202",
-                lat: 40.8079,
-                lng: -73.9624,
+            ForecastSpot(
+                spotID: "cam-001-spot-3",
+                lat: 40.810134,
+                lng: -73.960933,
                 status: "occupied",
-                sourceCameraID: "cam-2",
-                lastUpdated: Date().addingTimeInterval(-420) // 7 min ago
+                predictedAvailability: 0.85,
+                estimatedWaitMinutes: 2.0,
+                distanceMeters: 120.0,
+                lastUpdated: Date().addingTimeInterval(-60),
+                sourceCameraID: "cam-001"
+            ),
+            ForecastSpot(
+                spotID: "cam-001-spot-4",
+                lat: 40.810253,
+                lng: -73.961215,
+                status: "empty",
+                predictedAvailability: 0.9,
+                estimatedWaitMinutes: 5.0,
+                distanceMeters: 200.0,
+                lastUpdated: Date().addingTimeInterval(-180),
+                sourceCameraID: "cam-001"
+            ),
+            ForecastSpot(
+                spotID: "cam-001-spot-0",
+                lat: 40.809591,
+                lng: -73.959638,
+                status: "empty",
+                predictedAvailability: 0.7,
+                estimatedWaitMinutes: 15.0,
+                distanceMeters: 340.0,
+                lastUpdated: Date().addingTimeInterval(-600),
+                sourceCameraID: "cam-001"
             )
         ]
+
+        return vm
+    }
+
+    @MainActor
+    static var previews: some View {
+        let vm = makeMockViewModel()
 
         return NavigationStack {
             ForecastResultsView(viewModel: vm)

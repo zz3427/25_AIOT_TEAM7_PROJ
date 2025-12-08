@@ -32,6 +32,7 @@ struct SpotsResponse: Decodable {
     let timestamp: String
 }
 
+
 struct ParkingSpot: Identifiable, Decodable, Hashable {
     let id = UUID()
     let spotID: String
@@ -40,6 +41,11 @@ struct ParkingSpot: Identifiable, Decodable, Hashable {
     let status: String
     let sourceCameraID: String?
     let lastUpdated: Date?
+    
+//    //forecast-related fields (optional)
+//    let distanceMeters: Double?
+//    let predictedAvailability: Double?
+//    let estimatedWaitMinutes: Double?
 
     private enum CodingKeys: String, CodingKey {
         case spotID
@@ -48,6 +54,9 @@ struct ParkingSpot: Identifiable, Decodable, Hashable {
         case status
         case sourceCameraID
         case lastUpdated
+//        case distanceMeters
+//        case predictedAvailability
+//        case estimatedWaitMinutes
     }
 }
 

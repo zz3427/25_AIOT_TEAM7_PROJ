@@ -19,6 +19,7 @@ struct ForecastView: View {
     @State private var showResults = false
 
     var body: some View {
+        var fakeDemo = true
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -111,7 +112,11 @@ struct ForecastView: View {
                     // MARK: - Action button
                     Button {
                         Task {
-                            await viewModel.loadForecastForCurrentSelection()
+                            if (fakeDemo) {
+                                await viewModel.fakeLoadForecastForCurrentSelection()
+                            } else {
+                                await viewModel.loadForecastForCurrentSelection()
+                            }
                             if viewModel.errorMessage == nil {
                                 showResults = true
                             }

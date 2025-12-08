@@ -24,8 +24,8 @@ struct ParkAtCUApp: App {
                 }
             }
             .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    withAnimation(.easeOut(duration: 0.8)) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                    withAnimation(.easeOut(duration: 1.0)) {
                         showSplash = false
                     }
                 }

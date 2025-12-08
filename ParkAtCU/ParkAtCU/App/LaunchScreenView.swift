@@ -3,11 +3,11 @@
 //  ParkAtCU
 //
 //  Created by Gerald Zhao on 12/5/25.
-//
-
 import SwiftUI
 
 struct LaunchScreenView: View {
+    @State private var showSubtitle = false   // start hidden
+
     var body: some View {
         ZStack {
             // Columbia blue background
@@ -24,17 +24,41 @@ struct LaunchScreenView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 140, height: 140)
-                    .shadow(color: Color(#colorLiteral(red: 0, green: 0.36, blue: 0.73, alpha: 1)), radius: 10)
+                    .shadow(
+                        color: Color(#colorLiteral(red: 0, green: 0.36, blue: 0.73, alpha: 1)),
+                        radius: 10
+                    )
 
                 Text("ParkAtCU")
                     .font(.largeTitle.bold())
                     .foregroundColor(.white)
 
-                Text("An AI-powered effort to optimize Columbia parking.")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.85))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                if showSubtitle {
+                    Text("An AI-powered effort to optimize Columbia parking.")
+                        .font(.title3)  // 🔹 bigger than subheadline
+                        .foregroundColor(.white.opacity(0.9))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                removal: .opacity.combined(with: .move(edge: .top))
+                            )
+                        )
+                }
+            }
+        }
+        .onAppear {
+            // 1) Animate IN immediately
+            withAnimation(.easeOut(duration: 0.6)) {
+                showSubtitle = true
+            }
+
+            // 2) After ~4s, animate OUT
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    showSubtitle = false
+                }
             }
         }
     }
@@ -53,7 +77,7 @@ struct GridOverlay: View {
                     path.addLine(to: CGPoint(x: x, y: geo.size.height))
                 }
 
-                // horizontal lines
+                // horizontal lines  👇 fixed: full width
                 stride(from: 0, through: geo.size.height, by: spacing).forEach { y in
                     path.move(to: CGPoint(x: 0, y: y))
                     path.addLine(to: CGPoint(x: geo.size.width, y: y))
