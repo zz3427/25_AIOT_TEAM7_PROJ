@@ -1,111 +1,105 @@
-# backend/predictor.py
+# predictor.py
 #
-# Simple rule-based "model" for parking availability.
-# It behaves like something we trained on historical data,
-# but is implemented as lookup tables for now.
+# New ML-based predictor that uses a trained RandomForest model
+# to estimate the probability that at least one spot will be
+# empty at the driver's arrival time.
+#
+# IMPORTANT:
+# - Requires parking_forecast_model.joblib (trained by train_model_24h.py)
+# - Function signatures are unchanged so the rest of the backend
+#   (Flask routes, iOS app, etc.) do not need to be modified.
 
-from datetime import datetime
-from typing import Literal
+from __future__ import annotations
 
-DayType = Literal["weekday", "weekend"]
+from datetime import datetime, timedelta
+from pathlib import Path
 
-# Probability that a spot is EMPTY by day type and hour (0-23).
-# These numbers encode assumptions about class times and behavior
-# around the engineering building.
-PROB_EMPTY_BY_HOUR = {
-    "weekday": {
-        # Night / very early: mostly empty
-        0: 0.96, 1: 0.97, 2: 0.98, 3: 0.98, 4: 0.97, 5: 0.95,
-        # Early morning commute
-        6: 0.6, 7: 0.5,
-        # Morning class blocks (busy)
-        8: 0.3, 9: 0.2, 10: 0.25, 11: 0.3,
-        # Midday / lunch, still busy
-        12: 0.35, 13: 0.3, 14: 0.3, 15: 0.35,
-        # Afternoon / people leaving
-        16: 0.45, 17: 0.55,
-        # Evening / mostly gone
-        18: 0.65, 19: 0.75, 20: 0.85, 21: 0.9, 22: 0.93, 23: 0.95,
-    },
-    "weekend": {
-        # Night / early morning: very empty
-        0: 0.97, 1: 0.98, 2: 0.99, 3: 0.99, 4: 0.98, 5: 0.97,
-        # Late morning: some people come in
-        6: 0.9, 7: 0.88, 8: 0.85, 9: 0.8, 10: 0.78, 11: 0.75,
-        # Midday bump
-        12: 0.7, 13: 0.7, 14: 0.68, 15: 0.7,
-        # Afternoon tapering
-        16: 0.75, 17: 0.8,
-        # Evening / night: mostly empty
-        18: 0.85, 19: 0.9, 20: 0.93, 21: 0.95, 22: 0.97, 23: 0.98,
-    },
-}
+import joblib
 
-# Expected wait time (minutes) until some spot opens up in the area,
-# by day type and hour. Busy daytime = longer wait, nights = short wait.
-EXPECTED_WAIT_MINUTES_BY_HOUR = {
-    "weekday": {
-        0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 3,
-        6: 8, 7: 10,
-        8: 18, 9: 20, 10: 18, 11: 16,
-        12: 15, 13: 17, 14: 18, 15: 16,
-        16: 12, 17: 10,
-        18: 8, 19: 6, 20: 4, 21: 3, 22: 2, 23: 2,
-    },
-    "weekend": {
-        0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2,
-        6: 3, 7: 4, 8: 5, 9: 6, 10: 7, 11: 7,
-        12: 8, 13: 8, 14: 8, 15: 7,
-        16: 6, 17: 5,
-        18: 4, 19: 3, 20: 3, 21: 2, 22: 2, 23: 2,
-    },
-}
+# Load the trained model at import time
+_MODEL_PATH = Path(__file__).with_name("parking_forecast_model.joblib")
+_model = joblib.load(_MODEL_PATH)
 
 
-def _get_day_type(dt: datetime) -> DayType:
-    """Return 'weekday' or 'weekend' given a datetime."""
-    # Monday = 0, Sunday = 6
-    return "weekend" if dt.weekday() >= 5 else "weekday"
-
-
-def predict_empty_probability(arrival_dt: datetime) -> float:
+def _arrival_features(eta_minutes: float, now: datetime | None = None):
     """
-    Predict the probability that a random spot in this area is EMPTY
-    at the given arrival time.
+    Compute model features for the *arrival time*.
 
-    In a more advanced version, this could depend on:
-      - specific spot or area
-      - class schedules
-      - learned parameters from historical data
-    For now, it uses a time-of-day + weekday/weekend lookup.
+    The model is trained on:
+      - day_of_week: 0=Monday, ..., 6=Sunday
+      - minute_of_day: 0..1439 (00:00..23:59)
+
+    We take the current time, add eta_minutes, and convert.
     """
-    day_type = _get_day_type(arrival_dt)
-    hour = arrival_dt.hour
+    if now is None:
+        now = datetime.now()
 
-    day_table = PROB_EMPTY_BY_HOUR.get(day_type, {})
-    prob = day_table.get(hour)
+    arrival = now + timedelta(minutes=float(eta_minutes))
 
-    if prob is None:
-        # Fallback if somehow hour is missing
-        return 0.5
+    day_of_week = arrival.weekday()  # 0 = Monday
+    minute_of_day = arrival.hour * 60 + arrival.minute  # 0..1439
 
-    return prob
+    return [[day_of_week, minute_of_day]]
 
 
-def expected_wait_minutes(arrival_dt: datetime) -> float:
+def predict_empty_probability(
+    num_empty: int,
+    num_total: int,
+    eta_minutes: float,
+) -> float:
     """
-    Predict expected wait time (in minutes) until some spot opens up
-    in this area around the given time of day.
+    Predict P(at least one spot is empty at arrival time).
+
+    Parameters (unchanged from original):
+      - num_empty: current number of empty spots (from camera/LLM)
+      - num_total: total number of spots (6 in your demo)
+      - eta_minutes: user's ETA in minutes
+
+    Implementation:
+      - Compute arrival time = now + eta_minutes
+      - Convert to (day_of_week, minute_of_day)
+      - Query the trained model for P(any empty at that time)
     """
-    day_type = _get_day_type(arrival_dt)
-    hour = arrival_dt.hour
+    # If there is already an empty spot and ETA is ~0, you could shortcut,
+    # but we let the model handle it for simplicity/consistency.
+    X = _arrival_features(eta_minutes)
+    proba_any_empty = _model.predict_proba(X)[0][1]  # class 1 = "any empty"
 
-    day_table = EXPECTED_WAIT_MINUTES_BY_HOUR.get(day_type, {})
-    wait = day_table.get(hour)
+    # Clamp to [0,1] just in case of numeric quirks
+    return float(max(0.0, min(1.0, proba_any_empty)))
 
-    if wait is None:
-        # Fallback
-        return 10.0
 
-    return float(wait)
+def expected_wait_minutes(
+    num_empty: int,
+    num_total: int,
+    target_confidence: float = 0.8,
+    max_wait: int = 60,
+) -> float:
+    """
+    Estimate how long the driver should expect to wait until we reach
+    a desired confidence of finding a spot.
+
+    Parameters (same as before):
+      - num_empty: current number of empty spots
+      - num_total: total spots (not heavily used here)
+      - target_confidence: e.g. 0.8 for 80% chance of availability
+      - max_wait: upper bound on wait time we search over (minutes)
+
+    Strategy:
+      - If there are already empty spots now, return 0.
+      - Otherwise, search w = 0..max_wait and return the smallest w
+        such that P(any empty at time now + w) >= target_confidence.
+      - If no such w is found, return max_wait.
+    """
+    # Already at least one empty spot visible now -> no wait.
+    if num_empty > 0:
+        return 0.0
+
+    for w in range(0, max_wait + 1):
+        p = predict_empty_probability(num_empty, num_total, w)
+        if p >= target_confidence:
+            return float(w)
+
+    # If we never hit the threshold, just return the cap.
+    return float(max_wait)
 
